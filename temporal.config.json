@@ -1,0 +1,10 @@
+{
+  "address": "localhost:7233",
+  "namespace": "default",
+  "tls": {
+    "enabled": false,
+    "clientCertPath": "",
+    "clientKeyPath": "",
+    "serverRootCACertPath": ""
+  }
+}
