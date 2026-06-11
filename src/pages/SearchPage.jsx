@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge';
+import {
+  listWorkflows,
+  getDefinitions,
+  setRestartDraft,
+  getSelectedUser,
+  USER_CONTEXT_CHANGED_EVENT,
+} from '../api/managementApi';
+import { isUserPortalView } from '../utils/portalView';
 
 const STATUS_OPTIONS = ['All', 'Running', 'Completed', 'Failed', 'Canceled', 'Terminated', 'TimedOut'];
 
@@ -9,8 +17,19 @@ function fmtTime(iso) {
   return new Date(iso).toLocaleString();
 }
 
-function ResultRow({ exec, onOpenDetail }) {
+function isRunningStatus(status) {
+  return String(status || '').toUpperCase() === 'RUNNING';
+}
+
+function ResultRow({ exec, canRestart, onOpenDetail, onRestart }) {
   const [expanded, setExpanded] = useState(false);
+  const running = isRunningStatus(exec.status);
+  const restartDisabled = running || !canRestart;
+  const restartTitle = running
+    ? 'Restart is only available for non-running workflows'
+    : canRestart
+      ? 'Restart this workflow with pre-filled input'
+      : 'Workflow type belongs to another integration; start form unavailable here';
   return (
     <div className={`result-row${expanded ? ' expanded' : ''}`}>
       <div className="result-main" onClick={() => setExpanded(e => !e)}>
@@ -25,12 +44,21 @@ function ResultRow({ exec, onOpenDetail }) {
           <div className="result-detail-grid">
             <div><span className="rd-label">Run ID</span><span className="rd-value mono">{exec.runId}</span></div>
             <div><span className="rd-label">Closed</span><span className="rd-value">{fmtTime(exec.closeTime)}</span></div>
-            <div><span className="rd-label">Task Queue</span><span className="rd-value">{exec.taskQueue || '—'}</span></div>
-            <div><span className="rd-label">History</span><span className="rd-value">{exec.historyLength} events</span></div>
+            <div><span className="rd-label">Type</span><span className="rd-value">{exec.workflowType}</span></div>
           </div>
-          <button className="open-detail-btn" onClick={() => onOpenDetail(exec)}>
-            Open Full Details →
-          </button>
+          <div className="result-actions">
+            <button className="open-detail-btn" onClick={() => onOpenDetail(exec)}>
+              Open Full Details →
+            </button>
+            <button
+              className="def-launch-btn-inline"
+              onClick={() => onRestart(exec)}
+              disabled={restartDisabled}
+              title={restartTitle}
+            >
+              ↻ Restart Workflow
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -38,15 +66,17 @@ function ResultRow({ exec, onOpenDetail }) {
 }
 
 export default function SearchPage() {
+  const isUserPortal = isUserPortalView();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const typeParam = searchParams.get('type');
+  const wfIdParam = searchParams.get('workflowId');
   const autoSearched = useRef(false);
 
-  const [activeTab, setActiveTab] = useState(typeParam ? 'search' : 'byId');
+  const [activeTab, setActiveTab] = useState(typeParam ? 'search' : wfIdParam ? 'byId' : 'byId');
 
   // By ID tab
-  const [idInput, setIdInput] = useState('');
+  const [idInput, setIdInput] = useState(wfIdParam ?? '');
 
   // Search tab
   const [typeFilter, setTypeFilter] = useState(typeParam ?? '');
@@ -54,6 +84,7 @@ export default function SearchPage() {
   const [startFrom, setStartFrom] = useState('');
   const [startTo, setStartTo] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(!typeParam);
+  const [activePreset, setActivePreset] = useState(null);
 
   // Results
   const [results, setResults] = useState([]);
@@ -62,18 +93,23 @@ export default function SearchPage() {
   const [nextToken, setNextToken] = useState(null);
   const [prevTokens, setPrevTokens] = useState([]);
   const [searched, setSearched] = useState(false);
+  const [localTypes, setLocalTypes] = useState(new Set());
+
+  const withStartedByFilter = (params) => {
+    if (!isUserPortal) {
+      return params;
+    }
+    const startedBy = getSelectedUser()?.userId;
+    return startedBy ? { ...params, startedBy } : params;
+  };
 
   const fetchWorkflows = (params, token = null) => {
     setLoading(true);
     setError(null);
     setSearched(true);
-    const p = new URLSearchParams({ pageSize: 30, ...params });
-    if (token) p.set('nextPageToken', token);
-    fetch(`/api/workflows?${p}`)
-      .then(r => r.json())
+    listWorkflows(withStartedByFilter({ limit: 30, ...params, ...(token ? { pageToken: token } : {}) }))
       .then(d => {
-        if (d.error) throw new Error(d.error);
-        setResults(d.executions || []);
+        setResults(d.items || []);
         setNextToken(d.nextPageToken || null);
       })
       .catch(e => setError(e.message))
@@ -91,12 +127,60 @@ export default function SearchPage() {
     }
   }, [typeParam]);
 
+  // Auto-search when arriving with ?workflowId=
+  useEffect(() => {
+    if (wfIdParam && !autoSearched.current) {
+      autoSearched.current = true;
+      setIdInput(wfIdParam);
+      setActiveTab('byId');
+      fetchWorkflows({ workflowId: wfIdParam });
+    }
+  }, [wfIdParam]);
+
+  useEffect(() => {
+    getDefinitions()
+      .then(d => {
+        const types = new Set((d.definitions || []).map(def => def.workflowType));
+        setLocalTypes(types);
+      })
+      .catch(() => setLocalTypes(new Set()));
+  }, []);
+
+  useEffect(() => {
+    const onUserContextChanged = () => {
+      setPrevTokens([]);
+      setNextToken(null);
+      if (!searched) {
+        return;
+      }
+      if (activeTab === 'byId' && idInput.trim()) {
+        fetchWorkflows({ workflowId: idInput.trim() });
+      } else if (activeTab === 'search') {
+        fetchWorkflows(buildSearchParams());
+      }
+    };
+    window.addEventListener(USER_CONTEXT_CHANGED_EVENT, onUserContextChanged);
+    return () => window.removeEventListener(USER_CONTEXT_CHANGED_EVENT, onUserContextChanged);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, searched, idInput, typeFilter, statusFilter, startFrom, startTo, activePreset]);
+
   const buildSearchParams = () => {
     const p = {};
     if (typeFilter.trim()) p.workflowType = typeFilter.trim();
     if (statusFilter !== 'All') p.status = statusFilter;
-    if (startFrom) p.startTimeFrom = startFrom;
-    if (startTo) p.startTimeTo = startTo;
+    if (activePreset) {
+      const now = new Date();
+      if (activePreset === 'lastHour') p.startTimeFrom = new Date(now - 3600000).toISOString();
+      else if (activePreset === 'today') p.startTimeFrom = now.toISOString().split('T')[0];
+      else if (activePreset === 'yesterday') {
+        const y = new Date(now); y.setDate(y.getDate() - 1);
+        const d = y.toISOString().split('T')[0];
+        p.startTimeFrom = d; p.startTimeTo = d;
+      }
+    } else {
+      if (startFrom) p.startTimeFrom = startFrom;
+      if (startTo) p.startTimeTo = startTo;
+    }
     return p;
   };
 
@@ -142,6 +226,9 @@ export default function SearchPage() {
       <div className="page-header">
         <h2 className="page-title">Workflow Instances</h2>
       </div>
+      {isUserPortal && (
+        <p className="page-subtitle">Showing only workflow instances started by the selected user.</p>
+      )}
 
       <div className="tabs">
         <button className={`tab-btn${activeTab === 'byId' ? ' active' : ''}`} onClick={() => switchTab('byId')}>
@@ -184,6 +271,18 @@ export default function SearchPage() {
 
           {filtersOpen && (
             <div className="filters-body">
+              <div className="filter-group">
+                <label className="filter-label">Date Preset</label>
+                <div className="preset-btns">
+                  {[['lastHour', 'Last Hour'], ['today', 'Today'], ['yesterday', 'Yesterday']].map(([p, label]) => (
+                    <button
+                      key={p}
+                      className={`preset-btn${activePreset === p ? ' active' : ''}`}
+                      onClick={() => { setActivePreset(prev => prev === p ? null : p); setStartFrom(''); setStartTo(''); }}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
               <div className="filter-row">
                 <div className="filter-group">
                   <label className="filter-label">Workflow Type</label>
@@ -202,11 +301,13 @@ export default function SearchPage() {
                 </div>
                 <div className="filter-group">
                   <label className="filter-label">Start From</label>
-                  <input className="filter-input" type="date" value={startFrom} onChange={e => setStartFrom(e.target.value)} />
+                  <input className="filter-input" type="date" value={startFrom}
+                    onChange={e => { setStartFrom(e.target.value); setActivePreset(null); }} />
                 </div>
                 <div className="filter-group">
                   <label className="filter-label">Start To</label>
-                  <input className="filter-input" type="date" value={startTo} onChange={e => setStartTo(e.target.value)} />
+                  <input className="filter-input" type="date" value={startTo}
+                    onChange={e => { setStartTo(e.target.value); setActivePreset(null); }} />
                 </div>
               </div>
               <button className="search-btn" onClick={handleSearch}>Search</button>
@@ -225,7 +326,12 @@ export default function SearchPage() {
           <ResultRow
             key={`${exec.workflowId}-${exec.runId}`}
             exec={exec}
+            canRestart={localTypes.has(exec.workflowType)}
             onOpenDetail={openDetail}
+            onRestart={workflow => {
+              setRestartDraft({ workflowType: workflow.workflowType, input: workflow.input ?? null });
+              navigate(`/definitions?launchType=${encodeURIComponent(workflow.workflowType)}`);
+            }}
           />
         ))}
         {(prevTokens.length > 0 || nextToken) && (
