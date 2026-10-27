@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workflow portals storyboard</title>
+  <meta name="description" content="Wireframes that show where the workflow runtime's admin context and user inbox live relative to the Integration Control Plane.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='14' height='14' rx='2' fill='none' stroke='%23444' stroke-width='1.5' stroke-dasharray='3 2'/></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="#/">Workflow portals <span>storyboard</span></a>
+    <nav class="tabs" id="tabs">
+      <a href="#/">Overview</a>
+      <a href="#/icp">ICP</a>
+      <a href="#/admin">Admin context</a>
+      <a href="#/inbox">User inbox</a>
+      <a href="#/custom">Own portal</a>
+      <a href="#/wrong">Anti-pattern</a>
+      <a href="#/why">Why</a>
+    </nav>
+    <button class="btn ghost" id="scenario-toggle" type="button">Walk the scenario</button>
+  </header>
+
+  <main id="view"></main>
+
+  <footer class="scenario" id="scenario" hidden>
+    <button class="btn" id="scenario-prev" type="button">Back</button>
+    <div class="scenario-text">
+      <div class="scenario-step" id="scenario-step"></div>
+      <div class="scenario-caption" id="scenario-caption"></div>
+    </div>
+    <button class="btn primary" id="scenario-next" type="button">Next</button>
+    <button class="btn ghost" id="scenario-close" type="button" title="Close the scenario">×</button>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
