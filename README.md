@@ -6,7 +6,16 @@ and the **user inbox**, live relative to the **Integration Control Plane (ICP)**
 One leave-request instance is shown from every surface, so the difference between the personas is visible rather
 than argued. Nothing is backed by a runtime; the only state is the two clicks of the scenario (reassign, approve).
 
-Open `index.html` in a browser, or serve the folder with any static server. No build step.
+The published page is encrypted. `index.html` holds only ciphertext and a password prompt; the storyboard is
+decrypted in the browser (AES-256-GCM, key derived from the password with PBKDF2, WebCrypto). The sources live in
+`src/`, which is not committed, and the password is never in the repository.
+
+```sh
+STORYBOARD_PASSWORD='…' node build.mjs   # bundles src/ into index.html, encrypted
+```
+
+Commit the generated `index.html` and push; GitHub Pages serves it from `main`. The site carries `noindex` and
+`robots.txt` as well, but the encryption is what keeps the content out of search engines.
 
 ## What is in it
 
