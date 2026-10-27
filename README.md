@@ -18,6 +18,7 @@ Open `index.html` in a browser, or serve the folder with any static server. No b
 | User inbox | The delegate's inbox and the approval form |
 | Own portal | A customer's HR app embedding "My approvals" on the same APIs |
 | Today | The Workflows page the ICP ships now (environment picker, User Actions / Admin Actions), with what is wrong about keeping it there |
+| Placement | Where the workflow runtime appears in the ICP: under Runtimes like MI, or its own item; pros, cons, recommendation |
 | Why | The argument in full, a side-by-side table, and answers to the usual follow-ups |
 
 **Walk the scenario** steps through the surfaces with the same instance highlighted on each.

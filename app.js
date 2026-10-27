@@ -304,7 +304,69 @@ function why() {
     <p><b>Customers will build their own portal.</b> Yes, on the same APIs, which is why the APIs are the product and the shipped portals are reference consumers (see <a href="#/custom">Own portal</a>). That is an argument for environment-scoped, business-facing APIs, not for folding the UI into the control plane.</p>
     <p><b>Is the admin context the ICP admin?</b> No. “Admin” here means business administration of workflows: reassigning tasks, pausing and resuming instances. The ICP's administrator manages the platform.</p>
     <p><b>How does the ICP relate to the portals then?</b> When a runtime connects, the ICP learns its portals and shows them per environment, next to the runtime's version, health and aggregate metrics (see <a href="#/icp">ICP</a>). It links out; it does not host them.</p>
+    <p><b>Should it be under Runtimes, like MI?</b> Registration, health and logs yes; the per-integration binding with namespaces, portals and counters needs its own item. See <a href="#/placement">Placement</a> for both drawn with pros and cons.</p>
     <p><b>The ICP already has a Workflows page with User and Admin tabs.</b> Yes (see <a href="#/wrong">Today</a>). The proposal keeps that page's DevOps half, the runtime and its environments, and moves the two business tabs behind the runtime's own URL, one per environment and version.</p>
+  </div>`;
+}
+
+
+function placement() {
+  const rows = (env) => [
+    ["hr-leave-approval-1", "BI", "RUNNING", "1.3.0", "", false],
+    ["hr-leave-approval-2", "BI", "RUNNING", "1.3.0", "", false],
+    [`workflow-rt-${env}`, "Workflow", "RUNNING", env === "prod" ? "0.1.0" : "0.2.0", `<a href="#/admin">admin</a> · <a href="#/inbox">inbox</a>`, true],
+  ];
+  const table = (env) => `<div class="panel"><div class="h" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem"><b style="font-size:16px">${env}</b><span class="chip on">3 runtimes</span><span style="flex:1"></span><button class="btn small primary">+ Register runtime</button></div>
+    <table><tr><th>Runtime</th><th>Type</th><th>Status</th><th>Version</th><th>Portals</th><th></th></tr>
+    ${rows(env).map(([id, t, s, v, p, wf]) => `<tr${wf ? ' class="hl-box"' : ""}><td><code>${id}</code></td><td><span class="chip${wf ? " wf" : ""}">${t}</span></td><td><span class="pill ok">${s}</span></td><td class="ver">${v}</td><td style="white-space:nowrap">${p}</td><td><button class="btn small">Logs</button> <button class="btn small">Delete</button></td></tr>`).join("")}
+    </table></div>`;
+  const optionA = `
+    <div class="bar"><h2 style="margin:0">Runtimes</h2></div>
+    <div class="env-cards">${table("prod")}${table("staging")}</div>
+    <div class="panel"><h3>Register runtime</h3><div class="tabs-ul"><span>Default</span><span>MI</span><span class="on">Workflow</span></div>
+      <p class="crumb" style="font-size:12px">Add the following to the runtime's <b>runtime.toml</b>. The secret is shown once. Enable Workflow Management is implied.</p></div>`;
+  const optionB = `
+    <div class="bar"><span class="avatar">H</span><div><h2 style="margin:0">hr-leave-approval</h2><span class="crumb">Leave requests and approvals for the HR project</span></div></div>
+    <div class="tabs-ul"><span>Overview</span><span class="on">Workflow runtime</span><span>Runtimes</span></div>
+    <div class="panel env-card"><div class="h"><b>prod</b><span class="chip online">2/2 Online</span><span class="chip wf">Workflow runtime <span class="ver">0.1.0</span></span></div>
+      <div><h4>Runtime (DevOps)</h4>nodes, database, namespaces</div><div><h4>Portals · API v1</h4><div class="links"><a href="#/admin">${portalUrl("prod", "admin")}</a><a href="#/inbox">${portalUrl("prod", "inbox")}</a></div></div><div><h4>Counters</h4>running, waiting, failed</div></div>
+    <p class="crumb">Full version on the <a href="#/icp">ICP</a> page.</p>`;
+  return `
+  <h1>Where does the workflow runtime appear in the ICP?</h1>
+  <p class="hero">The first question the ICP team will ask. Two candidate placements, drawn in the ICP's shape, with the case for each.</p>
+  <div class="options">
+    <div>
+      <h2>A · Under <b>Runtimes</b>, as a runtime type</h2>
+      ${icpFrame("https://icp.example.internal/organizations/default/projects/hr/components/hr-leave-approval/runtimes", "Signed in: ops-team", { on: "runtimes" }, optionA)}
+      ${notes([
+        ["For", "It is a registered process with a secret, a status, logs and metrics, exactly like a BI or MI runtime. The ICP already models MI, which the user does not write either, under Runtimes. One registration flow, one list, one log pipeline, no new navigation.", "ok"],
+        ["Against", "Runtimes are per integration; the workflow runtime is per environment and shared by many integrations, so it would appear under every integration that uses it. Namespaces, portal links and workflow counters have no column in a runtime list.", "bad"],
+      ])}
+    </div>
+    <div>
+      <h2>B · Its own item, <b>Workflow runtime</b></h2>
+      ${icpFrame("https://icp.example.internal/organizations/default/projects/hr/components/hr-leave-approval/workflow-runtime", "Signed in: ops-team", { on: "workflows", workflows: "Workflow runtime" }, optionB)}
+      ${notes([
+        ["For", "Room for what a runtime row cannot hold: namespaces, the portal links per environment and version, read-only workflow counters. The sidebar item already exists today as “Workflows”; this changes what it shows, not where it is. Says clearly: the user did not write this, it is infrastructure the integration uses.", "ok"],
+        ["Against", "A second place that looks like a runtime list. If registration, health and logs are also done here, the ICP has two runtime models to keep consistent.", "bad"],
+      ])}
+    </div>
+  </div>
+  <h2>Side by side</h2>
+  <div class="panel"><table class="compare">
+    <tr><th></th><th>A · under Runtimes</th><th>B · own item</th></tr>
+    <tr><td>Analogy</td><td>MI: a runtime the user did not write, registered like any other</td><td>Database or message broker: infrastructure the integration binds to</td></tr>
+    <tr><td>Ownership</td><td>Looks per integration; the runtime is per environment</td><td>Per environment, shown from the integration that uses it</td></tr>
+    <tr><td>Registration, secret, status, logs, metrics</td><td>Reused as is</td><td>Needs a copy, or a link to A</td></tr>
+    <tr><td>Namespaces, portals, counters</td><td>No place for them</td><td>Native</td></tr>
+    <tr><td>Navigation change</td><td>None; one more type chip and a third tab in Register</td><td>Rename today's “Workflows” item and replace its content</td></tr>
+    <tr><td>Risk</td><td>The workflow runtime reads as one more pod of the integration</td><td>Two runtime-like lists</td></tr>
+  </table></div>
+  <h2>Recommendation</h2>
+  <div class="panel">
+    <p><b>Do both, split by job.</b> Register, monitor and log the workflow runtime under <b>Runtimes</b> as a third type next to BI and MI (option A): it is a process with a secret and a status, and the ICP already has that plumbing. Keep the integration-level <b>Workflow runtime</b> item (option B) for what a runtime row cannot show: which environment's runtime this integration is bound to, its namespaces, the version-matched portal links and the counters. The item links back to the runtime row for health and logs.</p>
+    <p>The MI counter-argument is right about registration and wrong about the rest: MI runs the integration, so it belongs to the integration; the workflow runtime serves every integration in the environment, so its registration belongs to the environment and its appearance under an integration is a binding, not ownership.</p>
+    <p class="crumb">If only one may be chosen: A. Nothing in B is lost for DevOps, and the portals are reachable from the runtime row.</p>
   </div>`;
 }
 
@@ -350,6 +412,7 @@ const routes = {
   "inbox/task": () => inbox(true),
   custom,
   wrong,
+  placement,
   why,
 };
 

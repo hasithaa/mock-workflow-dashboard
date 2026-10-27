@@ -210,3 +210,6 @@ tr.link td { cursor: pointer; }
 .env-card .links a { font-size: 12px; }
 .ver { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 @media (max-width: 760px) { .frame.icp .icp-main { grid-template-columns: 1fr; } .env-card { grid-template-columns: 1fr; } .frame.icp .sw small { display: none; } }
+
+.options { display: grid; gap: 1.2rem; margin-bottom: 1rem; }
+.options h2 { font-weight: 500; }
