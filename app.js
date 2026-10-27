@@ -52,6 +52,32 @@ function intro(title, lead, facts) {
 
 const hl = (id) => (scenario.active && scenario.steps[scenario.index].highlight === id ? " hl" : "");
 
+
+// Runtime versions differ per environment, so the portal UI and API version differ too; the ICP only stores the link.
+const ENVS = [
+  { env: "dev", status: "1/1 Online", runtime: "0.3.0-dev", api: "v2", db: "SQLite", nodes: 1, running: 6, waiting: 2, failed: 1 },
+  { env: "staging", status: "1/1 Online", runtime: "0.2.0", api: "v2", db: "PostgreSQL", nodes: 1, running: 23, waiting: 7, failed: 0 },
+  { env: "prod", status: "2/2 Online", runtime: "0.1.0", api: "v1", db: "PostgreSQL", nodes: 2, running: 128, waiting: 41, failed: 3 },
+];
+const portalUrl = (env, ctx) => `https://workflow-${env}.example.com/${ctx}`;
+
+function icpFrame(url, persona, nav, body) {
+  const head = `<div class="icp-head"><span>☰</span><span class="logo">WSO2 <b>Integration</b> Platform</span>
+    <span class="sw">Default Organization<small>Organization</small></span><span>›</span><span class="sw">HR<small>Project</small></span><span>›</span><span class="sw">hr-leave-approval<small>Integration</small></span>
+    <span class="sp"></span><span class="ic bell"></span><span class="ic user"></span></div>`;
+  const side = sideNav([
+    ["", [{ name: "Overview" }, { name: nav.workflows || "Workflows", on: nav.on === "workflows" }, { name: "Runtimes", on: nav.on === "runtimes" }]],
+    ["Observability", [{ name: "Logs" }, { name: "Loggers" }, { name: "Metrics" }]],
+    ["Infrastructure", [{ name: "Environments" }]],
+    ["Management", [{ name: "Access-control" }]],
+  ]);
+  return `<div class="frame icp">
+    <div class="chrome"><span class="dots"></span><span class="url">${url}</span><span class="persona">${persona}</span></div>
+    <div class="screen">${head}<div class="icp-main"><aside class="side">${side}</aside><div class="body">${body}</div></div>
+    <div class="foot">Privacy Policy · Cookie Policy · Support · v2.2 · © 2026 WSO2 LLC.</div></div>
+  </div>`;
+}
+
 // ---------------------------------------------------------------- screens
 
 function overview() {
@@ -67,8 +93,8 @@ function overview() {
   <div class="trio">
     <a href="#/icp"><div class="card"><h3>Integration Control Plane <span class="who">DevOps</span></h3>
       <div>All environments of every integration. Sees the runtime as a <i>component</i>: version, health, scaling, logs,
-      and links to the portals of each environment.</div>
-      <ul><li>dev · staging · prod in one view</li><li>deploy, roll back, scale, alert</li></ul>
+      namespaces, and links to the portals of each environment.</div>
+      <ul><li>dev · staging · prod in one view</li><li>register runtimes, create namespaces, scale, alert</li></ul>
       <span class="scale">Sized for a handful of operators, 1–2 nodes</span></div></a>
     <a href="#/admin"><div class="card"><h3>Admin context <span class="who">Business operations</span></h3>
       <div>One environment, one runtime. Instances, tasks and definitions of the workflows running there.</div>
@@ -83,42 +109,32 @@ function overview() {
     ["Environment is the dividing line", "The ICP spans environments. A manager's approvals exist only in production; a merged inbox would have to ask which environment it is showing."],
     ["Different persona, different questions", "DevOps asks “is it healthy, what version, how many pods”. Business asks “why is Priya's request stuck, who can approve it”."],
     ["Different scaling", "The ICP is sized for operators. The inbox is sized for everyone with a task in the business, and grows with the load of the workflows."],
+    ["Different versions", "Each environment runs its own runtime version. A portal served by the runtime matches it; a portal compiled into the ICP must carry every version at once."],
   ])}
-  <p>See <a href="#/why">Why</a> for the full comparison, <a href="#/wrong">Anti-pattern</a> for what the merged version would look like,
+  <p>See <a href="#/why">Why</a> for the full comparison, <a href="#/wrong">Today</a> for the Workflows page the ICP ships now,
   and <a href="#/custom">Own portal</a> for teams that want to build their own UI on the same APIs.</p>`;
 }
 
 function icp() {
-  const side = sideNav([
-    ["Control plane", [{ name: "Overview" }, { name: "Integrations", on: true }, { name: "Environments" }, { name: "Deployments" }, { name: "Alerts", badge: "2" }, { name: "Settings" }]],
-  ]);
+  const cards = ENVS.map((e) => `<div class="panel env-card${e.env === "prod" ? hl("icp-portals") : ""}">
+      <div class="h"><b>${e.env}</b><span class="chip online">${e.status}</span><span class="chip wf">Workflow runtime <span class="ver">${e.runtime}</span></span><span class="sp" style="flex:1"></span>
+        <button class="btn small">Logs</button><button class="btn small">Scale</button></div>
+      <div><h4>Runtime (DevOps)</h4><dl class="kv" style="grid-template-columns:80px 1fr"><dt>Nodes</dt><dd>${e.nodes}</dd><dt>Database</dt><dd>${e.db}</dd><dt>Namespaces</dt><dd>hr, hr-archive</dd></dl>
+        <div class="actions"><button class="btn small">Create namespace</button><button class="btn small">Register runtime</button></div></div>
+      <div><h4>Workflow portals · API ${e.api}</h4><div class="links"><a href="#/admin">${portalUrl(e.env, "admin")}</a><a href="#/inbox">${portalUrl(e.env, "inbox")}</a></div>
+        <p class="crumb" style="font-size:12px">Served by this runtime, so always the matching version.</p></div>
+      <div><h4>Counters (read-only)</h4><dl class="kv" style="grid-template-columns:110px 1fr"><dt>Running</dt><dd>${e.running}</dd><dt>Waiting on people</dt><dd>${e.waiting}</dd><dt>Failed, 24 h</dt><dd>${e.failed}</dd></dl></div>
+    </div>`).join("");
   const body = `
-    <div class="bar"><span class="crumb">Integrations ›</span><h2>hr-leave-approval</h2>
-      <span class="chips"><span class="chip env">dev</span><span class="chip env">staging</span><span class="chip env on">prod</span></span></div>
-    <div class="cards">
-      <div class="card"><div class="k">Version</div><div class="v">1.3.0</div>staging has 1.4.0-rc1</div>
-      <div class="card"><div class="k">Health</div><div class="v"><span class="pill ok">Healthy</span></div>2/2 replicas</div>
-      <div class="card"><div class="k">Workflow runtime</div><div class="v">0.1.0</div>workflow-rt-prod · PostgreSQL</div>
-      <div class="card"><div class="k">Last deployment</div><div class="v">3 d ago</div>by CI, pipeline #418</div>
-    </div>
-    <div class="two">
-      <div class="panel${hl("icp-portals")}"><h3>Workflow portals (prod)</h3>
-        <div class="links"><a href="#/admin">${PORTALS.admin}</a><a href="#/inbox">${PORTALS.inbox}</a></div>
-        <p class="crumb">Registered when the runtime connected. Each environment has its own pair.</p></div>
-      <div class="panel"><h3>Workflow metrics (prod, read-only)</h3>
-        <dl class="kv"><dt>Running</dt><dd>128</dd><dt>Waiting on people</dt><dd>41</dd><dt>Failed, 24 h</dt><dd>3</dd><dt>Oldest wait</dt><dd>${INSTANCE.waitingDays} d · <a href="#/admin">open in admin</a></dd></dl></div>
-    </div>
-    <div class="panel"><h3>Environments</h3>
-      <table><tr><th>Env</th><th>Version</th><th>Replicas</th><th>Runtime</th><th>Portals</th><th></th></tr>
-        <tr><td>dev</td><td>1.4.0-dev</td><td>1</td><td>workflow-rt-dev · SQLite</td><td>admin · inbox</td><td><button class="btn small">Logs</button></td></tr>
-        <tr><td>staging</td><td>1.4.0-rc1</td><td>1</td><td>workflow-rt-staging · PostgreSQL</td><td>admin · inbox</td><td><button class="btn small">Logs</button></td></tr>
-        <tr><td>prod</td><td>1.3.0</td><td>2</td><td>workflow-rt-prod · PostgreSQL</td><td>admin · inbox</td><td><button class="btn small">Logs</button> <button class="btn small">Scale</button></td></tr>
-      </table></div>`;
-  return intro("Integration Control Plane", "What DevOps sees. The runtime is a component with a version and a health; the portals are links. Nothing here is about one request or one person.",
-    [["Persona", "Platform / DevOps"], ["Scope", "All integrations, all environments"], ["Scaling", "1–2 nodes, a few operators"], ["Not here", "Instances, tasks, approvals"]])
-    + frame("https://icp.example.internal/integrations/hr-leave-approval?env=prod", "Signed in: ops-team", body, side)
+    <div class="bar"><span class="avatar">H</span><div><h2 style="margin:0">hr-leave-approval</h2><span class="crumb">Leave requests and approvals for the HR project</span></div></div>
+    <div class="tabs-ul"><span>Overview</span><span class="on">Workflow runtime</span><span>Runtimes</span></div>
+    <div class="env-cards">${cards}</div>`;
+  return intro("Integration Control Plane", "What DevOps sees, in the ICP's own shape: one card per environment. The runtime is a component with a version, nodes, a database and namespaces; the workflow functions are links to that environment's runtime.",
+    [["Persona", "Platform / DevOps"], ["Scope", "All environments of the integration"], ["Stays here", "Environments, runtime registration, namespaces, scaling, logs, metrics, access control"], ["Moves out", "Instances, tasks, approvals, retries"]])
+    + icpFrame("https://icp.example.internal/organizations/default/projects/hr/components/hr-leave-approval/workflow-runtime", "Signed in: ops-team", { on: "workflows", workflows: "Workflow runtime" }, body)
     + notes([
-      ["Links out, does not host", "The ICP knows the portals exist and where. The admin context and inbox are served by the runtime of that environment."],
+      ["DevOps functions stay in the ICP", "Create namespaces, register a runtime, bind it to an environment, scale it, read its logs and metrics, manage who may operate it. These are the ICP's job."],
+      ["Workflow functions come from the runtime's URL", "Three environments run three runtime versions (0.1.0, 0.2.0, 0.3.0-dev) with two portal API versions. A link is always version-matched; a UI compiled into the ICP would have to speak all of them."],
       ["Counts, not cases", "Aggregates are fine here. The moment you need a row per instance or a form per task, you are in the other persona's tool."],
     ]);
 }
@@ -230,36 +246,47 @@ function custom() {
 }
 
 function wrong() {
-  const side = sideNav([
-    ["Control plane", [{ name: "Overview" }, { name: "Integrations" }, { name: "Environments" }, { name: "Deployments" }, { name: "Alerts", badge: "2" }, { name: "Inbox", on: true, badge: "3" }, { name: "Settings" }]],
-  ]);
   const body = `
-    <div class="bar"><h2>Inbox</h2><span class="crumb">environment:</span><span class="chips"><span class="chip env on">all ▾</span></span><span class="crumb">signed in as ${INSTANCE.delegate}</span></div>
-    <table><tr><th>Task</th><th>From</th><th>Integration</th><th>Env</th><th></th></tr>
-      <tr><td>Approve leave request</td><td>${INSTANCE.requester}</td><td>hr-leave-approval</td><td><span class="pill bad">prod</span></td><td><button class="btn small">Open</button></td></tr>
-      <tr><td>Approve leave request</td><td>test-user-7</td><td>hr-leave-approval</td><td><span class="pill dim">staging</span></td><td><button class="btn small">Open</button></td></tr>
-      <tr><td>Approve leave request</td><td>priya.test</td><td>hr-leave-approval</td><td><span class="pill dim">dev</span></td><td><button class="btn small">Open</button></td></tr>
+    <div class="bar"><h2 style="margin:0">Workflows</h2><span class="sp" style="flex:1"></span><span class="ac">prod <small>Environment ▾</small></span></div>
+    <p class="crumb">Manage workflow executions and human tasks for <b>hr-leave-approval</b>.</p>
+    <div class="tabs-ul"><span class="on">User Actions</span><span>Admin Actions</span></div>
+    <div class="bar"><span class="toggle"><span class="on">My Tasks</span><span>History</span></span><span class="chip">3 pending</span><span class="crumb">signed in as ${INSTANCE.delegate}</span></div>
+    <table><tr><th>Task</th><th>Workflow Name</th><th>Status</th><th>Started</th><th></th></tr>
+      <tr><td>Approve leave request · ${INSTANCE.requester}</td><td>Leave request</td><td><span class="pill wait">Pending</span></td><td>21 Oct</td><td><button class="btn small">Open</button></td></tr>
+      <tr><td>Approve leave request · Kasun Jay</td><td>Leave request</td><td><span class="pill wait">Pending</span></td><td>25 Oct</td><td><button class="btn small">Open</button></td></tr>
+      <tr><td>Confirm equipment · Sara Khan</td><td>Onboarding</td><td><span class="pill wait">Pending</span></td><td>26 Oct</td><td><button class="btn small">Open</button></td></tr>
     </table>
-    <div class="panel" style="margin-top:.8rem"><h3>Also on this page</h3><p class="crumb">Deployments · Roll back 1.3.0 → 1.2.4 · Scale replicas · Alert: CPU 91 % on workflow-rt-staging</p></div>`;
-  return intro("Anti-pattern: the inbox inside the ICP", "What the request “put all the portals in the ICP” produces once it is drawn. It is technically possible and visibly wrong.",
-    [["Persona", "Everyone at once"], ["Scope", "All environments, which is the problem"], ["Scaling", "Every approver on a 1–2 node console"], ["Verdict", "No"]])
-    + frame("https://icp.example.internal/inbox", `Signed in: ${INSTANCE.delegate} · also sees deployments`, body, side)
+    <div class="panel" style="margin-top:.8rem"><h3>Admin Actions (other tab)</h3><p class="crumb">Workflows · Retry Tasks · Status filter · Start Workflow · Workflow ID, Name, Status, Started, Actions · detail drawer: Info | History | Execution Graph</p></div>`;
+  return intro("Today: the Workflows page inside the ICP", "This is what the ICP ships now, drawn in its own theme: a Workflows page per integration with an environment picker and User Actions / Admin Actions tabs. It works, and it is the page people point at when they ask for “all the portals in the ICP”.",
+    [["Persona", "Everyone, in the DevOps console"], ["Scope", "One environment at a time, chosen on the page"], ["Scaling", "Every approver on a 1–2 node console"], ["Proposal", "Keep the DevOps page; move these two tabs to the runtime URL"]])
+    + icpFrame("https://icp.example.internal/organizations/default/projects/hr/components/hr-leave-approval/workflows", `Signed in: ${INSTANCE.delegate} · also sees Runtimes, Logs, Environments`, { on: "workflows" }, body)
     + notes([
-      ["Which environment is this?", "A real approval sits next to two test ones from developers. The approver has to know what “staging” means. The answer “filter to prod” admits the inbox is per environment.", "bad"],
-      ["Wrong audience on the wrong box", "Every manager in the company gets an account on the DevOps console, which is sized for a few operators. Scaling the ICP for approvers scales the wrong thing.", "bad"],
-      ["Wrong neighbours", "“Approve leave” beside “roll back” and “scale replicas” is a persona mismatch and an access-control problem.", "bad"],
+      ["Environment picker on a business page", "Nadia has to know what “staging” and “dev” mean to find her real approval. Her inbox is a production thing; the picker exists only because the ICP spans environments.", "bad"],
+      ["Wrong audience on the wrong box", "Every manager in the company gets an ICP account. The ICP is sized for a few operators; scaling it for approvers scales the wrong thing.", "bad"],
+      ["One page, several runtime versions", "This page is compiled into the ICP. prod runs portal API v1 and staging v2, so the page has to carry both versions' business logic, and every runtime release becomes an ICP release.", "bad"],
+      ["Wrong neighbours", "“Approve leave” sits beside Runtimes, Environments and Access-control: a persona mismatch and an access-control problem.", "bad"],
     ]);
 }
 
 function why() {
   return `
   <h1>Why the portals are not part of the ICP</h1>
-  <p class="hero">Three reasons, in the order that ends the discussion fastest.</p>
+  <p class="hero">Four reasons, in the order that ends the discussion fastest.</p>
   <div class="notes">
     <div class="note"><b>1. Environment</b>The ICP is multi-environment by design. The admin context and the inbox are single-environment by definition: a production approval has no dev or staging counterpart. There is no coherent “all environments” inbox, so the merged feature has no definition, only a filter that re-creates the split.</div>
     <div class="note"><b>2. Persona</b>The ICP serves DevOps: versions, health, scaling, deployments. The admin context serves business operations: reassign, pause, resume, terminate, retry, audit. The inbox serves every business user: my tasks and their forms. Different questions, different UX, different access control.</div>
     <div class="note"><b>3. Scaling</b>The ICP is sized for a few operators on one or two nodes. The portals scale with the workflow load and with the number of people in the business. Putting them in the ICP means scaling the control plane for business traffic.</div>
+    <div class="note"><b>4. Versioning</b>Each environment runs its own runtime version, so each has its own portal UI and API version. A portal served by the runtime is always version-matched. A portal compiled into the ICP has to carry every version's business logic at once, and every runtime release becomes an ICP release.</div>
   </div>
+  <h2>What stays in the ICP, what comes from the runtime URL</h2>
+  <div class="panel"><table class="compare">
+    <tr><th>Stays in the ICP (DevOps)</th><th>Comes from the runtime of each environment (workflow)</th></tr>
+    <tr><td>Environments and the runtime bound to each</td><td>Instances: list, detail, pause, resume, terminate</td></tr>
+    <tr><td>Register a runtime, create namespaces</td><td>Tasks: reassign, retry a failed step, fail permanently</td></tr>
+    <tr><td>Scale, logs, loggers, metrics</td><td>Inbox: my tasks, forms, notifications, start a request</td></tr>
+    <tr><td>Access control for operators</td><td>Audit of business actions</td></tr>
+    <tr><td>Aggregate counters and links to the portals</td><td>Definitions and the version they run at</td></tr>
+  </table></div>
   <h2>Side by side</h2>
   <div class="panel"><table class="compare">
     <tr><th></th><th>ICP</th><th>Admin context</th><th>User inbox</th></tr>
@@ -277,6 +304,7 @@ function why() {
     <p><b>Customers will build their own portal.</b> Yes, on the same APIs, which is why the APIs are the product and the shipped portals are reference consumers (see <a href="#/custom">Own portal</a>). That is an argument for environment-scoped, business-facing APIs, not for folding the UI into the control plane.</p>
     <p><b>Is the admin context the ICP admin?</b> No. “Admin” here means business administration of workflows: reassigning tasks, pausing and resuming instances. The ICP's administrator manages the platform.</p>
     <p><b>How does the ICP relate to the portals then?</b> When a runtime connects, the ICP learns its portals and shows them per environment, next to the runtime's version, health and aggregate metrics (see <a href="#/icp">ICP</a>). It links out; it does not host them.</p>
+    <p><b>The ICP already has a Workflows page with User and Admin tabs.</b> Yes (see <a href="#/wrong">Today</a>). The proposal keeps that page's DevOps half, the runtime and its environments, and moves the two business tabs behind the runtime's own URL, one per environment and version.</p>
   </div>`;
 }
 
