@@ -21,13 +21,13 @@ Commit the generated `index.html` and push; GitHub Pages serves it from `main`. 
 
 | Page | Shows |
 |---|---|
-| Overview | The three surfaces and the three-sentence argument |
-| ICP | In the ICP's own theme: one card per environment with the runtime (version, nodes, database, namespaces), version-matched portal links and read-only counters |
+| Overview | The two cases, the two modelling variations, the three surfaces and the four-sentence argument |
+| Case 1 · ICP only | DevOps, runtime management and workflow administration (instances, human tasks, admin actions) inside the ICP, drawn in its theme, with pros and cons |
+| Case 2 · ICP + portals | The ICP keeps DevOps and runtime management (environments, registration, namespaces, scaling, logs, counters) and links to the admin context and inbox served by each environment's runtime; pros and cons |
+| Runtime modelling | Orthogonal to the cases: the runtime as a separate entity with its own item, or as a runtime kind `workflow_runtime` under Runtimes like MI; pros, cons, recommendation |
 | Admin context | One environment's instances; the stuck request; reassign, pause, resume, terminate, retry, audit |
 | User inbox | The delegate's inbox and the approval form |
 | Own portal | A customer's HR app embedding "My approvals" on the same APIs |
-| Today | The Workflows page the ICP ships now (environment picker, User Actions / Admin Actions), with what is wrong about keeping it there |
-| Placement | Where the workflow runtime appears in the ICP: under Runtimes like MI, or its own item; pros, cons, recommendation |
 | Why | The argument in full, a side-by-side table, and answers to the usual follow-ups |
 
 **Walk the scenario** steps through the surfaces with the same instance highlighted on each.
